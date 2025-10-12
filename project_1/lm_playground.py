@@ -197,20 +197,20 @@ print (encode("The strawberry mojito was unbelievably delightful"))
 print(bpe_tok.convert_ids_to_tokens(ids))
 
 def decode(ids):
-    """
-    YOUR CODE HERE
-    """
+     # convert a list of IDs back to text
+    return bpe_tok.decode(ids, skip_special_tokens=True)
+
+print (decode([464, 41236, 6941, 73, 10094, 373, 48943, 32327]))
 
 # # 3. Demo
-# sample = "Unbelievable tokenization powers! 🚀"
-# ids = encode(sample)
-# recovered = decode(ids)
+sample = "Unbelievable tokenization powers! 🚀"
+ids = encode(sample)
+recovered = decode(ids)
 
-# print("\nInput text :", sample)
-# print("Token IDs  :", ids)
-# print("Tokens     :", bpe_tok.convert_ids_to_tokens(ids))
-# print("Decoded    :", recovered)
-
+print("\nInput text :", sample)
+print("Token IDs  :", ids)
+print("Tokens     :", bpe_tok.convert_ids_to_tokens(ids))
+print("Decoded    :", recovered)
 
 
 # %% [markdown] id="badaa5a8"
@@ -226,9 +226,29 @@ import tiktoken
 
 sentence = "The 🌟 star-player scored 40 points!"
 
-"""
-YOUR CODE HERE
-"""
+enc_gpt2 = tiktoken.get_encoding("gpt2")
+enc_cl100k = tiktoken.get_encoding("cl100k_base")
+
+# Encode (convert text → token IDs)
+ids_gpt2 = enc_gpt2.encode(sentence)
+ids_cl100k = enc_cl100k.encode(sentence)
+
+# Decode (convert token IDs → text)
+decoded_gpt2 = enc_gpt2.decode(ids_gpt2)
+decoded_cl100k = enc_cl100k.decode(ids_cl100k)
+
+# Print results
+print("Sentence:", sentence, "\n")
+
+print("GPT-2 encoding:")
+print("IDs:", ids_gpt2)
+print("Tokens:", [enc_gpt2.decode([i]) for i in ids_gpt2])
+print("Decoded:", decoded_gpt2, "\n")
+
+print("cl100k_base (GPT-4) encoding:")
+print("IDs:", ids_cl100k)
+print("Tokens:", [enc_cl100k.decode([i]) for i in ids_cl100k])
+print("Decoded:", decoded_cl100k)
 
 # %% [markdown] id="5e8c1023"
 # Experiment: try new sentences, emojis, code snippets, or other languages. If you are interested, try implementing the BPE algorithm yourself.
@@ -271,14 +291,13 @@ import torch.nn as nn
 class Linear(nn.Module):
     def __init__(self, in_features, out_features):
         super(Linear, self).__init__()
-        """
-        YOUR CODE HERE
-        """
+        # initialize weights and bias as parameters so they can be learned
+        self.W = nn.Parameter(torch.randn(out_features, in_features))
+        self.b = nn.Parameter(torch.randn(out_features))
 
     def forward(self, x):
-        """
-        YOUR CODE HERE
-        """
+        # perform y = W * x + b
+        return self.W @ x + self.b
 
 
 # %% colab={"base_uri": "https://localhost:8080/"} id="13e5e225" outputId="a29cbd7c-f0b6-4279-8a23-7be9e2eaf978"
@@ -310,9 +329,52 @@ import torch
 from transformers import GPT2LMHeadModel
 
 # Load the 124 M-parameter GPT-2 and inspect its layers (12 layers)
-"""
-YOUR CODE HERE
-"""
+# Load the 124M GPT-2 (12 blocks, 12 heads, 768 hidden)
+gpt2 = GPT2LMHeadModel.from_pretrained("gpt2")
+print("layers:", gpt2.config.n_layer,
+      "| heads:", gpt2.config.n_head,
+      "| hidden:", gpt2.config.n_embd)
+
+# This is GPT-2’s architecture summary:
+
+# Term	Meaning
+# layers = 12	GPT-2 has 12 Transformer blocks stacked one after another. Each block processes the same sequence, adding more depth and abstraction each time.
+# heads = 12	Each block’s self-attention is split into 12 “heads,” so the model can focus on 12 different relationship patterns between tokens at once.
+# hidden = 768	Every token is represented as a 768-dimensional vector inside the network (that’s the size of the embedding and of each block’s hidden layer).
+
+# So, for every word or token, GPT-2 stores a vector of length 768 and transforms it 12 times, each time using 12 attention heads.
+
+# Grab the Transformer stack and the FIRST block
+stack = gpt2.transformer              # embeddings + blocks + final ln_f
+block0 = gpt2.transformer.h[0]        # first Transformer block
+print(block0)                         # shows attn + mlp inside the block
+
+# 🔁 How a GPT-2 block works
+
+# Normalize the input → ln_1
+
+# Self-attention → tokens communicate and exchange info
+
+# Add residual connection (input + attention output)
+
+# Normalize again → ln_2
+
+# Feed-forward network (mlp) → transforms each token individually
+
+# Add another residual
+
+# That’s one complete Transformer block.
+# GPT-2 stacks 12 of these in a row → that’s what gives it depth and “intelligence.”
+
+# 🔍 Quick analogy
+
+# Think of each block as:
+
+# 👁️ The attention part decides what other words each token should “look at.”
+
+# 🧠 The MLP part reasons about what it just saw and updates its internal representation.
+
+# ⛓️ Repeating 12 times lets the model build deeper understanding of the whole sentence.
 
 # %% colab={"base_uri": "https://localhost:8080/"} id="92df06df" outputId="06130c23-2807-4f09-9d77-cbc8be2461b4"
 # Run a tiny forward pass through the first block
@@ -334,9 +396,8 @@ print("\nOutput shape :", out.shape) # (batch, seq_len, hidden_size)
 
 # %% colab={"base_uri": "https://localhost:8080/"} id="a78ddee1" outputId="7dbb0ccc-91dd-4bb4-a629-c22cd6b6899c"
 # Print the name and modules inside gpt2
-"""
-YOUR CODE HERE
-"""
+for name, module in gpt2.named_modules():
+    print(name, ":", module.__class__.__name__)
 
 # %% [markdown] id="ed029847"
 # As you can see, the Transformer holds various modules, arranged from a list of blocks (`h`). The following table summarizes these modules:
@@ -349,6 +410,26 @@ YOUR CODE HERE
 # | **Feed-Forward Network** | Two stacked Linear layers with a non-linearity | Mixes information and adds depth |
 # | **LayerNorm & Residual** | Stabilize training and help gradients flow | Keeps very deep networks trainable |
 #
+#
+# 🧩 What this shows
+#
+# transformer.wte → word (token) embedding layer
+#
+# transformer.wpe → positional embedding layer
+#
+# transformer.h.[i] → 12 identical Transformer blocks
+#
+# each has attn (attention), mlp (feed-forward), and layernorms
+#
+# transformer.ln_f → final normalization
+#
+# lm_head → linear layer that maps hidden states back to vocab logits for predicting the next token
+#
+# So, GPT-2 is literally:
+#
+# [ Embeddings ]
+# + [ 12 Transformer Blocks ]
+# + [ Output head ]
 
 # %% [markdown] id="0a6a7495"
 # ### 2.4 LLM's output
@@ -365,32 +446,59 @@ import torch, torch.nn.functional as F
 from transformers import GPT2LMHeadModel, GPT2TokenizerFast
 
 # Load gpt2 model and tokenizer
-"""
-YOUR CODE HERE
-"""
+model_name = "gpt2"
+gpt2 = GPT2LMHeadModel.from_pretrained(model_name)
+tokenizer = GPT2TokenizerFast.from_pretrained(model_name)
 
 # Tokenize input text
 text = "Hello my name"
-"""
-YOUR CODE HERE
-"""
+text = "Hello my name"
+inputs = tokenizer(text, return_tensors="pt")   # gives input_ids + attention_mask
+input_ids = inputs["input_ids"]
 
 # Get logits by passing the ids to the gpt2 model.
-"""
-YOUR CODE HERE
-"""
+with torch.no_grad():
+    outputs = gpt2(input_ids)
+logits = outputs.logits                        # shape: (batch, seq_len, vocab_size)
 
 print("Logits shape :", logits.shape)
 
 # Predict next token
-"""
-YOUR CODE HERE
-"""
+# Take the last position's logits ([-1] = last token)
+next_token_logits = logits[0, -1, :]
+
+# Convert logits → probabilities using softmax
+probs = F.softmax(next_token_logits, dim=-1)
 
 print("\nTop-5 predictions for the next token:")
-"""
-YOUR CODE HERE
-"""
+top_k = 5
+top_probs, top_ids = torch.topk(probs, top_k)
+
+print("\nTop-5 predictions for the next token:")
+for i in range(top_k):
+    token = tokenizer.decode(top_ids[i])
+    print(f"{i+1}. {token!r}  (prob={top_probs[i]:.4f})")
+
+
+# 🔢 Sequence of Events: How GPT-2 Generates Next-Token Predictions
+
+# Start with text — a short phrase or sentence.
+
+# Tokenize — convert the text into numeric token IDs that the model understands.
+
+# Feed tokens into the model — pass the token IDs through GPT-2.
+
+# Model outputs logits — raw, unnormalized scores for every token in the vocabulary, for every position in the sequence. 
+
+# Focus on the last position’s logits — these represent the model’s prediction for the next token. That gives you one vector with 50k numbers — one score for every possible next token in GPT-2’s vocabulary.
+
+# Then we apply softmax to turn those scores into actual probabilities:
+
+# Apply softmax — transform logits into probabilities that sum to 1.
+
+# Sort or select top-k — pick the most likely next tokens based on those probabilities.
+
+# Decode — turn the predicted token IDs back into readable text if needed.
 
 
 # %% [markdown] id="0eb05c9b"
@@ -418,17 +526,49 @@ MODELS = {
 }
 tokenizers, models = {}, {}
 # Load models and tokenizers
-"""
-YOUR CODE HERE
-"""
+for key, name in MODELS.items():
+    tokenizers[key] = AutoTokenizer.from_pretrained(name)
+    models[key] = AutoModelForCausalLM.from_pretrained(name)
 
 def generate(model_key, prompt, strategy="greedy", max_new_tokens=100):
     tok, mdl = tokenizers[model_key], models[model_key]
     # Return the generations based on the provided strategy: greedy, top_k, top_p
-    """
-    YOUR CODE HERE
-    """
+    inputs = tok(prompt, return_tensors="pt")
 
+    if strategy == "greedy":
+        # Pick the single most probable token each step
+        outputs = mdl.generate(
+            **inputs,
+            max_new_tokens=max_new_tokens,
+            do_sample=False,      # disables randomness
+            temperature=1.0
+        )
+
+    elif strategy == "top_k":
+        # Sample only from the top K likely tokens
+        outputs = mdl.generate(
+            **inputs,
+            max_new_tokens=max_new_tokens,
+            do_sample=True,
+            top_k=50,             # only consider top 50 tokens
+            temperature=0.8
+        )
+
+    elif strategy == "top_p":
+        # Sample from smallest set of tokens whose cumulative prob ≥ p
+        outputs = mdl.generate(
+            **inputs,
+            max_new_tokens=max_new_tokens,
+            do_sample=True,
+            top_p=0.9,            # nucleus sampling
+            temperature=0.8
+        )
+
+    else:
+        raise ValueError("Unknown strategy: choose from 'greedy', 'top_k', 'top_p'.")
+
+    return tok.decode(outputs[0], skip_special_tokens=True)
+    
 
 
 # %% colab={"base_uri": "https://localhost:8080/"} id="dbe777ba" outputId="8d0cbc16-078a-47cb-a411-e789b3f3db61"
@@ -453,7 +593,7 @@ for prompt in tests:
 tests=["Once upon a time","What is 2+2?", "Suggest a party theme."]
 for prompt in tests:
     print(f"\n== GPT-2 | Top-p ==")
-    print(generate("gpt2", prompt, "top-p", 40))
+    print(generate("gpt2", prompt, "top_p", 40))
 
 
 # %% [markdown] id="004b4039"
@@ -500,9 +640,18 @@ MODELS = {
 }
 tokenizers, models = {}, {}
 # Load models and tokenizers
-"""
-YOUR CODE HERE
-"""
+for key, name in MODELS.items():
+    # Qwen chat models often need trust_remote_code=True for proper generation utils
+    needs_trust = "Qwen" in name or "qwen" in name
+    tok = AutoTokenizer.from_pretrained(name, trust_remote_code=needs_trust)
+    mdl = AutoModelForCausalLM.from_pretrained(name, trust_remote_code=needs_trust)
+
+    # GPT-2 doesn’t have a pad token; set pad→eos to silence warnings
+    if tok.pad_token is None and hasattr(tok, "eos_token"):
+        tok.pad_token = tok.eos_token
+
+    tokenizers[key] = tok
+    models[key] = mdl
 
 
 # %% [markdown] id="ef49ab1b"
@@ -542,16 +691,124 @@ except NameError:
     raise RuntimeError("Please run the earlier setup cells that load the models before using the playground.")
 
 def generate_playground(model_key, prompt, strategy="greedy", temperature=1.0, max_new_tokens=100):
-    # Generation code
-    """
-    YOUR CODE HERE
-    """
+    tok, mdl = tokenizers[model_key], models[model_key]
+
+    # Some tokenizers (e.g., GPT-2) lack PAD; map PAD -> EOS once to avoid warnings
+    if getattr(tok, "pad_token_id", None) is None and getattr(tok, "eos_token_id", None) is not None:
+        tok.pad_token = tok.eos_token
+
+    # Use chat template for instruction-tuned chat models when available (e.g., Qwen)
+    if model_key.lower().startswith("qwen") or hasattr(tok, "apply_chat_template"):
+        try:
+            chat = [{"role": "user", "content": prompt}]
+            formatted = tok.apply_chat_template(chat, tokenize=False, add_generation_prompt=True)
+            inputs = tok(formatted, return_tensors="pt")
+        except Exception:
+            inputs = tok(prompt, return_tensors="pt")
+    else:
+        inputs = tok(prompt, return_tensors="pt")
+
+    gen_cfg = dict(
+        max_new_tokens=int(max_new_tokens),
+        pad_token_id=tok.eos_token_id if getattr(tok, "eos_token_id", None) is not None else None,
+    )
+
+    # Decoding strategies
+    if strategy == "greedy":
+        gen_cfg.update(dict(do_sample=False))
+    elif strategy == "top_k":
+        gen_cfg.update(dict(do_sample=True, top_k=50, temperature=float(temperature)))
+    elif strategy == "top_p":
+        gen_cfg.update(dict(do_sample=True, top_p=0.9, temperature=float(temperature)))
+    else:
+        raise ValueError("strategy must be one of: 'greedy', 'top_k', 'top_p'")
+
+    # Light repetition controls help with small models
+    gen_cfg.update(dict(repetition_penalty=1.15, no_repeat_ngram_size=3))
+
+    with torch.no_grad():
+        out_ids = models[model_key].generate(**inputs, **gen_cfg)
+
+    return tok.decode(out_ids[0], skip_special_tokens=True)
 
 # Your code to build boxes, dropdowns, and other elements in the UI using widgets and creating the UI using widgets.vbox and display.
 # Refer to https://ipywidgets.readthedocs.io/en/stable/
-"""
-YOUR CODE HERE
-"""
+# ---------------- UI WIDGETS ----------------
+model_dd = widgets.Dropdown(
+    options=list(models.keys()),
+    value=next(iter(models.keys())),
+    description="Model:",
+    layout=widgets.Layout(width="300px")
+)
+
+strategy_dd = widgets.Dropdown(
+    options=[("Greedy", "greedy"), ("Top-k", "top_k"), ("Top-p (nucleus)", "top_p")],
+    value="greedy",
+    description="Decoding:",
+    layout=widgets.Layout(width="300px")
+)
+
+temp_slider = widgets.FloatSlider(
+    value=1.0, min=0.2, max=1.5, step=0.05,
+    description="Temperature:",
+    readout_format=".2f",
+    continuous_update=False,
+    layout=widgets.Layout(width="400px")
+)
+
+max_tokens_slider = widgets.IntSlider(
+    value=80, min=1, max=256, step=1,
+    description="Max new tokens:",
+    continuous_update=False,
+    layout=widgets.Layout(width="400px")
+)
+
+prompt_ta = widgets.Textarea(
+    value="Suggest a party theme with decor, music, and snack ideas.",
+    placeholder="Type your prompt here…",
+    description="Prompt:",
+    layout=widgets.Layout(width="100%", height="120px")
+)
+
+generate_btn = widgets.Button(
+    description="Generate",
+    button_style="primary",
+    tooltip="Run the model",
+    icon="play"
+)
+
+out = widgets.Output()
+
+
+def on_generate_clicked(_):
+    out.clear_output()
+    with out:
+        print("Generating…")
+        try:
+            text = generate_playground(
+                model_key=model_dd.value,
+                prompt=prompt_ta.value,
+                strategy=strategy_dd.value,
+                temperature=temp_slider.value,
+                max_new_tokens=max_tokens_slider.value,
+            )
+            display(Markdown(f"### Output\n\n{text}"))
+        except Exception as e:
+            display(Markdown(f"**Error:** `{e}`"))
+
+generate_btn.on_click(on_generate_clicked)
+
+ui = widgets.VBox([
+    widgets.HBox([model_dd, strategy_dd]),
+    temp_slider,
+    max_tokens_slider,
+    prompt_ta,
+    generate_btn,
+    out
+])
+
+display(ui)
+
 
 
 # %% [markdown] id="cfbccead"
