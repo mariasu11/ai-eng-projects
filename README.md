@@ -10,10 +10,8 @@ You can run the projects either on **Google Colab** (no local setup required) or
 
 ### Option A: Run in Google Colab
 1. Upload the notebook for the current week to Colab.
-2. In the first cell, install the required packages listed in `requirements.txt` that Colab does not already provide.  
-   *(You can also manually install additional packages with `%pip install` as needed.)*
-3. If needed, add your API tokens using `os.environ[...] = "value"`.
-4. Ensure that any local file paths are adjusted for Colab.
+2. If needed, add your API tokens using `os.environ[...] = "value"`.
+3. Ensure that any local file paths are adjusted for Colab.
 
 ### Option B: Run locally with Conda
 Each project comes with an `environment.yml` file that specifies its dependencies. This ensures consistent environments.
